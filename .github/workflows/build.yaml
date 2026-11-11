@@ -61,8 +61,11 @@ jobs:
 
       - name: Verify final kernel configuration
         run: |
+          set -euxo pipefail
+          ls -lah dist
           test -s dist/Image
-          test -s dist/Module.symvers
+          test -s dist/vmlinux.symvers
+          kernel/common/scripts/extract-ikconfig dist/Image > dist/.config
           test -s dist/.config
           for option in SYSVIPC POSIX_MQUEUE IPC_NS PID_NS USER_NS DEVTMPFS NETFILTER_XT_MATCH_ADDRTYPE MODVERSIONS; do
             grep -qx "CONFIG_${option}=y" dist/.config
@@ -72,12 +75,12 @@ jobs:
             exit 1
           fi
           cp dist/.config build-record/final.config
-          cp dist/Module.symvers build-record/Module.symvers
+          cp dist/vmlinux.symvers build-record/vmlinux.symvers
           sha256sum dist/Image > build-record/Image.sha256
           echo 'Candidate build only. Vendor-module CRC comparison and device boot testing are still required.' > build-record/STATUS.txt
 
       - name: Upload kernel and compatibility records
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pad7pro-6.1.157-droidspaces-candidate
@@ -85,7 +88,7 @@ jobs:
           retention-days: 7
           path: |
             dist/Image
-            dist/Module.symvers
+            dist/*.symvers
             dist/.config
             dist/System.map
             dist/vmlinux
