@@ -1,0 +1,100 @@
+name: Pad7Pro Droidspaces 6.1.157
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl rsync cpio kmod build-essential libssl-dev libelf-dev lz4 xz-utils zstd bison flex bc libtinfo5 python3 unzip
+          mkdir -p "$HOME/.local/bin"
+          curl -fL https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/.local/bin/repo"
+          chmod +x "$HOME/.local/bin/repo"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          git config --global user.name 'Kernel Builder'
+          git config --global user.email 'kernel-builder@users.noreply.github.com'
+
+      - name: Download official Android 14 Linux 6.1 sources
+        run: |
+          mkdir kernel
+          cd kernel
+          repo init -u https://android.googlesource.com/kernel/manifest -b 2794b9e9cd65be8ecf9a772bc32082598f0e6594 --depth=1
+          repo sync -c -j4 --no-clone-bundle --no-tags
+          mkdir -p "$GITHUB_WORKSPACE/build-record"
+          repo manifest -r -o "$GITHUB_WORKSPACE/build-record/manifest.xml"
+          test "$(make -s -C common kernelversion)" = 6.1.157
+          git -C common rev-parse HEAD > "$GITHUB_WORKSPACE/build-record/source-commit.txt"
+
+      - name: Apply SYSVIPC ABI padding patch and container configuration
+        working-directory: kernel
+        run: |
+          echo 'RnJvbSA3NjlhNWNmZGMxN2I5OGQ4ZTBiZDQ5MWQ0NWY1NjUxMTgwZTQyMTk2IE1vbiBTZXAgMTcgMDA6MDA6MDAgMjAwMQpGcm9tOiBudWxscHRyLXQtb3NzIDwxMjc4MjIyMjYrbnVsbHB0ci10LW9zc0B1c2Vycy5ub3JlcGx5LmdpdGh1Yi5jb20+CkRhdGU6IFdlZCwgOCBBcHIgMjAyNiAwOToxODoyMyArMDAwMApTdWJqZWN0OiBbUEFUQ0hdIEFCSTogdXNlIEFCSSBwYWRkaW5nIGZvciBTWVNWSVBDCgpUaGlzIGNvbW1pdCBhbGxvd3MgdXMgdG8gZW5hYmxlIENPTkZJR19TWVNWSVBDIGluIGRlZmNvbmZpZyB3aXRob3V0IGJyZWFraW5nIGtlcm5lbCBBQkkuCgpTaWduZWQtb2ZmLWJ5OiBudWxscHRyLXQtb3NzIDwxMjc4MjIyMjYrbnVsbHB0ci10LW9zc0B1c2Vycy5ub3JlcGx5LmdpdGh1Yi5jb20+Ci0tLQogaW5jbHVkZS9saW51eC9zY2hlZC5oIHwgMTAgKysrKysrKystLQogMSBmaWxlIGNoYW5nZWQsIDggaW5zZXJ0aW9ucygrKSwgMiBkZWxldGlvbnMoLSkKCmRpZmYgLS1naXQgYS9pbmNsdWRlL2xpbnV4L3NjaGVkLmggYi9pbmNsdWRlL2xpbnV4L3NjaGVkLmgKaW5kZXggYjI3NWNkMjg1MTgyLi5mMDNlMGQ1ZTQ5YzEgMTAwNjQ0Ci0tLSBhL2luY2x1ZGUvbGludXgvc2NoZWQuaAorKysgYi9pbmNsdWRlL2xpbnV4L3NjaGVkLmgKQEAgLTEwNzQsOCArMTA3NCw4IEBAIHN0cnVjdCB0YXNrX3N0cnVjdCB7CiAJc3RydWN0IG5hbWVpZGF0YQkJKm5hbWVpZGF0YTsKIAogI2lmZGVmIENPTkZJR19TWVNWSVBDCi0Jc3RydWN0IHN5c3Zfc2VtCQkJc3lzdnNlbTsKLQlzdHJ1Y3Qgc3lzdl9zaG0JCQlzeXN2c2htOworCS8vIHN0cnVjdCBzeXN2X3NlbQkJCXN5c3ZzZW07CisJLy8gc3RydWN0IHN5c3Zfc2htCQkJc3lzdnNobTsKICNlbmRpZgogI2lmZGVmIENPTkZJR19ERVRFQ1RfSFVOR19UQVNLCiAJdW5zaWduZWQgbG9uZwkJCWxhc3Rfc3dpdGNoX2NvdW50OwpAQCAtMTUxMyw5ICsxNTEzLDE1IEBAIHN0cnVjdCB0YXNrX3N0cnVjdCB7CiAJQU5EUk9JRF9LQUJJX1JFU0VSVkUoMyk7CiAJQU5EUk9JRF9LQUJJX1JFU0VSVkUoNCk7CiAJQU5EUk9JRF9LQUJJX1JFU0VSVkUoNSk7CisKKyNpZmRlZiBDT05GSUdfU1lTVklQQworCUFORFJPSURfS0FCSV9VU0UoNiwgc3RydWN0IHN5c3Zfc2VtIHN5c3ZzZW0pOworCV9BTkRST0lEX0tBQklfUkVQTEFDRShBTkRST0lEX0tBQklfUkVTRVJWRSg3KTsgQU5EUk9JRF9LQUJJX1JFU0VSVkUoOCksIHN0cnVjdCBzeXN2X3NobSBzeXN2c2htKTsKKyNlbHNlCiAJQU5EUk9JRF9LQUJJX1JFU0VSVkUoNik7CiAJQU5EUk9JRF9LQUJJX1JFU0VSVkUoNyk7CiAJQU5EUk9JRF9LQUJJX1JFU0VSVkUoOCk7CisjZW5kaWYKIAogCS8qCiAJICogTmV3IGZpZWxkcyBmb3IgdGFza19zdHJ1Y3Qgc2hvdWxkIGJlIGFkZGVkIGFib3ZlIGhlcmUsIHNvIHRoYXQK' | base64 -d > "$GITHUB_WORKSPACE/build-record/sysvipc-kabi.patch"
+          git -C common apply --check "$GITHUB_WORKSPACE/build-record/sysvipc-kabi.patch"
+          git -C common apply "$GITHUB_WORKSPACE/build-record/sysvipc-kabi.patch"
+          cat > common/arch/arm64/configs/droidspaces.fragment <<'EOF'
+          CONFIG_SYSVIPC=y
+          CONFIG_POSIX_MQUEUE=y
+          CONFIG_IPC_NS=y
+          CONFIG_PID_NS=y
+          CONFIG_USER_NS=y
+          CONFIG_DEVTMPFS=y
+          CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y
+          EOF
+          cp common/arch/arm64/configs/droidspaces.fragment "$GITHUB_WORKSPACE/build-record/"
+          git -C common diff > "$GITHUB_WORKSPACE/build-record/source-changes.patch"
+          git -C common add include/linux/sched.h arch/arm64/configs/droidspaces.fragment
+          git -C common commit -m 'Enable Droidspaces with SYSVIPC ABI padding'
+
+      - name: Build candidate GKI kernel
+        working-directory: kernel
+        run: |
+          set -o pipefail
+          tools/bazel run //common:kernel_aarch64_dist --config=fast --config=stamp --lto=thin --defconfig_fragment=//common:arch/arm64/configs/droidspaces.fragment -- --dist_dir="$GITHUB_WORKSPACE/dist" 2>&1 | tee "$GITHUB_WORKSPACE/build-record/build.log"
+
+      - name: Verify final kernel configuration
+        run: |
+          test -s dist/Image
+          test -s dist/Module.symvers
+          test -s dist/.config
+          for option in SYSVIPC POSIX_MQUEUE IPC_NS PID_NS USER_NS DEVTMPFS NETFILTER_XT_MATCH_ADDRTYPE MODVERSIONS; do
+            grep -qx "CONFIG_${option}=y" dist/.config
+          done
+          if grep -Eq '^CONFIG_(CFS_BANDWIDTH|CGROUP_PIDS)=y$' dist/.config; then
+            echo 'Unexpected ABI-changing resource limit configuration.' >&2
+            exit 1
+          fi
+          cp dist/.config build-record/final.config
+          cp dist/Module.symvers build-record/Module.symvers
+          sha256sum dist/Image > build-record/Image.sha256
+          echo 'Candidate build only. Vendor-module CRC comparison and device boot testing are still required.' > build-record/STATUS.txt
+
+      - name: Upload kernel and compatibility records
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pad7pro-6.1.157-droidspaces-candidate
+          include-hidden-files: true
+          retention-days: 7
+          path: |
+            dist/Image
+            dist/Module.symvers
+            dist/.config
+            dist/System.map
+            dist/vmlinux
+            build-record/
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          retention-days: 7
+          path: build-record/
