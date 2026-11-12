@@ -1,0 +1,97 @@
+name: Diagnose Pad7Pro swap ABI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Read existing build workflow
+        uses: actions/checkout@v6
+
+      - name: Install diagnostic tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl rsync build-essential libssl-dev libelf-dev libtinfo5 bison flex bc dwarves python3
+          mkdir -p "$HOME/.local/bin"
+          curl -fL https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/.local/bin/repo"
+          chmod +x "$HOME/.local/bin/repo"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          git config --global user.name 'Kernel Builder'
+          git config --global user.email 'kernel-builder@users.noreply.github.com'
+
+      - name: Sync exact candidate sources
+        run: |
+          mkdir kernel
+          cd kernel
+          repo init -u https://android.googlesource.com/kernel/manifest -b 2794b9e9cd65be8ecf9a772bc32082598f0e6594 --depth=1
+          mkdir -p .repo/local_manifests
+          printf '%s\n' '<manifest><extend-project name="kernel/common" revision="e5cac90db2d54dbf93ebcda9152c24325167b5fe" /></manifest>' > .repo/local_manifests/pin.xml
+          repo sync -c -j4 --no-clone-bundle --no-tags
+          test "$(git -C common rev-parse HEAD)" = e5cac90db2d54dbf93ebcda9152c24325167b5fe
+
+      - name: Compare symbol type records across configurations
+        working-directory: kernel
+        run: |
+          set -euxo pipefail
+          export PATH="$PWD/prebuilts/clang/host/linux-x86/clang-r487747c/bin:$PATH"
+          test -x "$PWD/prebuilts/clang/host/linux-x86/clang-r487747c/bin/clang"
+          export ARCH=arm64 LLVM=1 LLVM_IAS=1 HOSTCC=clang HOSTCXX=clang++
+          export OUT_DIR="$PWD/diagnostic-out"
+          export RECORD="$GITHUB_WORKSPACE/abi-diagnostic"
+          mkdir -p "$RECORD"
+          repo manifest -r -o "$RECORD/manifest.xml"
+          python3 - <<'PY'
+          import base64, os
+          from pathlib import Path
+          s=Path('../.github/workflows/build.yaml').read_text()
+          line=next(x for x in s.splitlines() if '| base64 -d >' in x)
+          Path(os.environ['RECORD'], 'sysvipc-kabi.patch').write_bytes(base64.b64decode(line.split("'")[1]))
+          PY
+          git -C common apply --check "$RECORD/sysvipc-kabi.patch"
+          git -C common apply "$RECORD/sysvipc-kabi.patch"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('common/scripts/Makefile.build')
+          s=p.read_text()
+          old='$(call cmd_gensymtypes_c,true,$@) >/dev/null'
+          assert s.count(old)==1
+          p.write_text(s.replace(old,'$(call cmd_gensymtypes_c,true,$@) >$@.crc'))
+          PY
+          make -C common O="$OUT_DIR" gki_defconfig
+          common/scripts/config --file "$OUT_DIR/.config" -d LTO_CLANG_FULL -e LTO_CLANG_THIN -d CONNECTOR -d PROC_EVENTS -d SYSVIPC -d PID_NS -d USER_NS
+          make -C common O="$OUT_DIR" olddefconfig
+          cp "$OUT_DIR/.config" "$RECORD/baseline.config"
+          for variant in baseline sysvipc pidns userns connector all; do
+            cp "$RECORD/baseline.config" "$OUT_DIR/.config"
+            case "$variant" in
+              baseline) ;;
+              sysvipc) common/scripts/config --file "$OUT_DIR/.config" -e SYSVIPC ;;
+              pidns) common/scripts/config --file "$OUT_DIR/.config" -e PID_NS ;;
+              userns) common/scripts/config --file "$OUT_DIR/.config" -e USER_NS ;;
+              connector) common/scripts/config --file "$OUT_DIR/.config" -e CONNECTOR -e PROC_EVENTS ;;
+              all) common/scripts/config --file "$OUT_DIR/.config" -e SYSVIPC -e PID_NS -e USER_NS -e DEVTMPFS -e NETFILTER_XT_MATCH_ADDRTYPE -e CONNECTOR -e PROC_EVENTS ;;
+            esac
+            make -C common O="$OUT_DIR" olddefconfig
+            make -C common O="$OUT_DIR" -j4 prepare scripts
+            make -C common O="$OUT_DIR" V=1 mm/swapfile.symtypes
+            mkdir -p "$RECORD/$variant"
+            cp "$OUT_DIR/.config" "$RECORD/$variant/kernel.config"
+            cp "$OUT_DIR/mm/swapfile.symtypes" "$RECORD/$variant/"
+            cp "$OUT_DIR/mm/swapfile.symtypes.crc" "$RECORD/$variant/"
+            grep -E '#SYMVER (__page_file_index|add_swap_extent|page_swap_info|swapcache_mapping|unuse_swap_pte) ' "$OUT_DIR/mm/swapfile.symtypes.crc" | tee "$RECORD/$variant/selected-crcs.txt"
+          done
+          diff -u "$RECORD/baseline/swapfile.symtypes" "$RECORD/all/swapfile.symtypes" > "$RECORD/baseline-vs-all.diff" || test "$?" = 1
+
+      - name: Preserve diagnostic records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pad7pro-swap-abi-diagnostic
+          retention-days: 7
+          path: abi-diagnostic/
