@@ -376,7 +376,7 @@ def verify_vendor_contents(original, new, replacements):
     np, nt, ne, nf, nd, nb = ramdisk.parts(new)
     require(op == np and oe == ne and od == nd and ob == nb and len(of) == len(nf), 'Vendor DTB, bootconfig or fragment structure changed')
     require(original[:24] == new[:24] and original[28:op] == new[28:np], 'Unexpected vendor boot header change')
-    changed = []
+    changed, processed = [], set()
     for i, (a, b) in enumerate(zip(of, nf)):
         require(ot[i * oe + 8:(i + 1) * oe] == nt[i * ne + 8:(i + 1) * ne], 'Vendor ramdisk table metadata changed')
         old_entries = list(ramdisk.entries(ramdisk.decompress(a))) if a else []
@@ -387,9 +387,11 @@ def verify_vendor_contents(original, new, replacements):
             require(name == current['name'] and old['prefix'] == current['prefix'], 'Vendor archive order/path changed')
             require(all(old['fields'][j] == current['fields'][j] for j in range(13) if j not in (6, 12)), 'Vendor archive file attributes changed')
             require(current['content'] == replacements.get(name, old['content']), 'Unexpected vendor content change: ' + name)
+            if name in replacements:
+                processed.add(name)
             if old['content'] != current['content']:
                 changed.append(name)
-    require(set(changed) == set(replacements), 'Not all intended vendor modules were replaced')
+    require(processed == set(replacements), 'Not all intended vendor modules were found')
     return changed
 
 

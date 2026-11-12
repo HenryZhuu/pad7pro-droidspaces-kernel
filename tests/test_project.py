@@ -21,6 +21,20 @@ def archive(entries):
     return bytes(result)
 
 
+def vendor_fixture(entries):
+    page = 4096
+    compressed = ramdisk.compress(archive(entries))
+    dtb, bootconfig = b'test-dtb', b'test-config'
+    header = bytearray(page)
+    header[:8] = b'VNDRBOOT'
+    struct.pack_into('<II', header, 8, 4, page)
+    struct.pack_into('<I', header, 24, len(compressed))
+    struct.pack_into('<II', header, 2096, 2128, len(dtb))
+    struct.pack_into('<IIII', header, 2112, 108, 1, 108, len(bootconfig))
+    table = struct.pack('<III', len(compressed), 0, 1) + b'\0' * 96
+    return bytes(header) + b''.join(d + b'\0' * ((-len(d)) % page) for d in [compressed, dtb, table, bootconfig])
+
+
 class ProjectChecks(unittest.TestCase):
     def test_profile_refuses_path_traversal(self):
         for name in ['../elsewhere', '/absolute', 'x/y', 'A-B']:
@@ -60,6 +74,28 @@ class ProjectChecks(unittest.TestCase):
         new, changed = ramdisk.rewrite(old, {'lib/modules/cifs.ko': b'replacement'})
         self.assertEqual(new, old)
         self.assertEqual(changed, [])
+
+    def test_matching_module_does_not_require_a_fake_content_change(self):
+        vendor = vendor_fixture([('lib/modules/cifs.ko', b'already matching')])
+        self.assertEqual(kit.verify_vendor_contents(vendor, vendor, {'lib/modules/cifs.ko': b'already matching'}), [])
+        with self.assertRaises(ValueError):
+            kit.verify_vendor_contents(vendor, vendor, {'lib/modules/missing.ko': b'data'})
+
+    def test_public_export_excludes_private_baselines(self):
+        from tools import export_project
+        (kit.ROOT / '.local/test-temp').mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=kit.ROOT / '.local/test-temp') as tmp:
+            root = Path(tmp)
+            self.assertTrue(root.resolve().is_relative_to((kit.ROOT / '.local/test-temp').resolve()))
+            (root / '.local').mkdir()
+            (root / '.local/device-backup.img').write_bytes(b'private baseline')
+            (root / 'README.md').write_text('public source', encoding='utf-8')
+            with patch.object(export_project, 'ROOT', root):
+                self.assertEqual(list(export_project.public_files()), [('README.md', 'public source')])
+                key_marker = '-----BEGIN ' + 'PRIVATE KEY-----'
+                (root / 'README.md').write_text(key_marker, encoding='utf-8')
+                with self.assertRaises(ValueError):
+                    list(export_project.public_files())
 
     def test_private_baseline_tampering_is_rejected(self):
         p = kit.profile('muyu-os4.0.3.0')

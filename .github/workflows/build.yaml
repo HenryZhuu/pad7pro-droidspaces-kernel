@@ -21,17 +21,6 @@ on:
         description: Also upload the large vmlinux debugging file
         type: boolean
         default: false
-  push:
-    branches: [main]
-    paths:
-      - profiles/**
-      - configs/**
-      - patches/**
-      - kernelkit/**
-      - tools/**
-      - requirements*.txt
-      - .github/workflows/build.yaml
-
 permissions:
   contents: read
 
