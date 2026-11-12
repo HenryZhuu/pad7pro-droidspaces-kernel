@@ -1,0 +1,14 @@
+.local/
+.venv/
+.cache/
+__pycache__/
+*.pyc
+*.img
+*.ko
+*.tar
+*.zip
+*.key
+signing_key.pem
+*.priv
+/dist/
+/build-record/

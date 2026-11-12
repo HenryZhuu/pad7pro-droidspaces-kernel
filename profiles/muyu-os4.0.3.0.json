@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "id": "muyu-os4.0.3.0",
+  "device": "muyu",
+  "model": "24091RPADC",
+  "firmware": "OS4.0.3.0.XOYCNXM",
+  "stock_kernel_release": "6.1.157-android14-11-g2de7246565ac-mi",
+  "kernel_version": "6.1.157",
+  "manifest_url": "https://android.googlesource.com/kernel/manifest",
+  "manifest_commit": "2794b9e9cd65be8ecf9a772bc32082598f0e6594",
+  "common_commit": "e5cac90db2d54dbf93ebcda9152c24325167b5fe",
+  "repo_commit": "b1a1cc603a26026466ba25bb4c294e9b731e8f33",
+  "fragment": "configs/droidspaces.fragment",
+  "patches": [
+    "patches/sysvipc-kabi.patch"
+  ],
+  "stock_certificate": "profiles/certs/muyu-os4.0.3.0.pem",
+  "stock_certificate_der_sha256": "08cdae8ee32410117db28a47c9dd2a5e86e6fba7b22862b67c783ab0e94ea8e3",
+  "protected_exports": "profiles/protected-exports-aarch64.txt",
+  "modules": [
+    "fs/smb/client/cifs.ko",
+    "fs/smb/common/cifs_arc4.ko",
+    "fs/smb/common/cifs_md4.ko",
+    "net/dns_resolver/dns_resolver.ko"
+  ],
+  "module_exports": [
+    "cifs_arc4_setkey",
+    "cifs_arc4_crypt",
+    "cifs_md4_init",
+    "cifs_md4_update",
+    "cifs_md4_final",
+    "dns_query"
+  ],
+  "required_config": {
+    "SYSVIPC": "y",
+    "POSIX_MQUEUE": "y",
+    "IPC_NS": "y",
+    "PID_NS": "y",
+    "USER_NS": "y",
+    "DEVTMPFS": "y",
+    "NETFILTER_XT_MATCH_ADDRTYPE": "y",
+    "MODVERSIONS": "y",
+    "MODULE_SIG_PROTECT": "y",
+    "CFI_CLANG": "y",
+    "CIFS": "m"
+  },
+  "forbidden_config": [
+    "CFS_BANDWIDTH",
+    "CGROUP_PIDS",
+    "MODULE_SIG_FORCE"
+  ],
+  "baseline_images": {
+    "boot": "2e9d93a3ffb48e324b746c2a0dcb5b800674922b3e99d789040d3e425013f8cc",
+    "vendor_boot": "b067c5488ed3cd70849ddc5b3417f7a8beb2847a66256b9fd5f925e9960c4c70",
+    "init_boot": "6b6cfdc3bce701be3496c3d2ee5d5115e78038ef96b6b396387169d63314a521"
+  },
+  "device_tested": false,
+  "allowed_unversioned_modules": ["init_boot/kernelsu.ko"]
+}
