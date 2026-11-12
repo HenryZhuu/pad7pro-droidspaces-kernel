@@ -63,6 +63,7 @@ gh auth login
 - 新内核保留原厂公开证书，签名检查与原厂模块 CRC 检查自动执行。
 - 缓存只含公开 Git 源码对象；不缓存构建目录或生成的签名私钥。云端仍会执行编译，缓存被回收时也能重新下载并构建。[GitHub 缓存说明](https://docs.github.com/en/actions/concepts/workflows-and-actions/dependency-caching)
 - 默认产物不含巨大的 vmlinux 调试文件。需要时勾选 `include_debug`。
+- 若编译后检查失败，另存 `unverified-kernel-*` 供诊断，避免丢失长时间编译的结果；自动入口不会把失败产物当成已验证版本下载打包。
 - 原厂 AVB 属性、回滚索引、镜像大小、DTB、启动配置和无关驱动在本地打包时保留。生成的镜像使用 `NONE` 完整性 footer，需要已解锁的设备；不是小米官方签名。
 
 **目前没有实机启动测试记录。** 离线检查不证明开机、硬件、KernelSU 或 Droidspaces 可以正常运行。当前 KernelSU 模块没有 CRC 版本表，会明确列入待实机验证项。
