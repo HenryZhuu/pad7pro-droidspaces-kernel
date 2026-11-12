@@ -76,7 +76,9 @@ def profile(profile_id):
 
 def profile_digest(p):
     files = [p['fragment'], p['stock_certificate'], p['protected_exports'], *p['patches']]
-    value = {'profile': p, 'inputs': {n: sha(public_file(n).read_bytes()) for n in files}}
+    # All profile inputs here are UTF-8 text; ignore platform newline encoding.
+    # Binary artifact and original image hashes remain byte-for-byte checks.
+    value = {'profile': p, 'inputs': {n: sha(public_file(n).read_text(encoding='utf-8').encode('utf-8')) for n in files}}
     return sha(json.dumps(value, sort_keys=True, separators=(',', ':')).encode())
 
 

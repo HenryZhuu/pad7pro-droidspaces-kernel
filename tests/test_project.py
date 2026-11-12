@@ -59,6 +59,19 @@ class ProjectChecks(unittest.TestCase):
         q['firmware'] = 'another-version'
         self.assertNotEqual(kit.profile_digest(p), kit.profile_digest(q))
 
+    def test_profile_identity_is_stable_across_windows_text_newlines(self):
+        p = kit.profile('muyu-os4.0.3.0')
+        original = kit.public_file
+        parent = kit.ROOT / '.local/test-temp'
+        parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=parent) as tmp:
+            cert = Path(tmp) / 'public.pem'
+            self.assertTrue(cert.resolve().is_relative_to(parent.resolve()))
+            cert.write_bytes(original(p['stock_certificate']).read_text(encoding='utf-8').replace('\n', '\r\n').encode())
+            expected = kit.profile_digest(p)
+            with patch.object(kit, 'public_file', side_effect=lambda name: cert if name == p['stock_certificate'] else original(name)):
+                self.assertEqual(kit.profile_digest(p), expected)
+
     def test_cpio_replacement_preserves_other_files_and_metadata(self):
         old = archive([('lib/modules/cifs.ko', b'old'), ('lib/modules/modules.load', b'cifs.ko\n')])
         new, changed = ramdisk.rewrite(old, {'lib/modules/cifs.ko': b'longer replacement'})
