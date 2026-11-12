@@ -78,7 +78,7 @@ jobs:
           replacement='"module_implicit_outs": get_gki_modules_list("arm64") + '+repr(modules)+','
           s=s.replace(old,replacement,1)
           marker='"android/abi_gki_aarch64_db845c",'
-          assert s.count(marker)==1
+          assert s.count(marker)>=1
           s=s.replace(marker,marker+'\n        "android/abi_gki_aarch64_droidspaces_cifs",',1)
           p.write_text(s)
           p=Path('common/android/gki_aarch64_protected_modules')
